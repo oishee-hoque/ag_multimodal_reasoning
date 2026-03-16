@@ -1,0 +1,8 @@
+# @package _global_
+defaults:
+  - override /data: rgb_noise_reduced
+  - override /model: unet_resnet34
+  - override /training: default
+
+experiment_name: "step2_noise_reduced"
+tags: ["step2", "rgb", "noise_reduction"]

@@ -1,0 +1,8 @@
+# @package _global_
+defaults:
+  - override /data: temporal
+  - override /model: unet_scratch
+  - override /training: default
+
+experiment_name: "step4_temporal"
+tags: ["step4", "temporal", "42channels"]
