@@ -1,0 +1,8 @@
+# @package _global_
+defaults:
+  - override /data: rgb_single
+  - override /model: unet_resnet34
+  - override /training: default
+
+experiment_name: "step1_rgb_baseline"
+tags: ["step1", "rgb", "baseline"]

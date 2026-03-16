@@ -1,0 +1,3 @@
+name: unet_resnet34  # same arch but no pretrained weights for >3 channels
+num_classes: 4
+class_weights: null

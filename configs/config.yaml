@@ -1,0 +1,15 @@
+defaults:
+  - paths: hpc
+  - data: rgb_single
+  - model: unet_resnet34
+  - training: default
+  - _self_
+
+seed: 42
+experiment_name: null
+
+wandb:
+  project: "irrigation-reasoning"
+
+tags: []
+deterministic: false

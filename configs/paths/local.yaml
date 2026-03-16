@@ -1,0 +1,5 @@
+# Local development paths
+data_root: ./data/irrigation
+train_state: ${paths.data_root}/Colorado
+test_state: ${paths.data_root}/Utah
+output_dir: ./outputs/irrigation-reasoning

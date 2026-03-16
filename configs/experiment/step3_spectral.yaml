@@ -1,0 +1,8 @@
+# @package _global_
+defaults:
+  - override /data: spectral_single
+  - override /model: unet_scratch
+  - override /training: default
+
+experiment_name: "step3_spectral"
+tags: ["step3", "spectral", "14bands"]
