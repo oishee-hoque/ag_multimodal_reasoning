@@ -57,11 +57,33 @@ def unet_efficientnet_b3(in_channels: int = 3, num_classes: int = 4, **kwargs):
     )
 
 
+@register_model("deeplabv3plus_resnet34")
+def deeplabv3plus_resnet34(in_channels: int = 3, num_classes: int = 4, **kwargs):
+    """DeepLabV3+ with ResNet-34 encoder."""
+    return smp.DeepLabV3Plus(
+        encoder_name="resnet34",
+        encoder_weights="imagenet" if in_channels == 3 else None,
+        in_channels=in_channels,
+        classes=num_classes,
+    )
+
+
 @register_model("deeplabv3plus_resnet50")
 def deeplabv3plus_resnet50(in_channels: int = 3, num_classes: int = 4, **kwargs):
     """DeepLabV3+ with ResNet-50 encoder."""
     return smp.DeepLabV3Plus(
         encoder_name="resnet50",
+        encoder_weights="imagenet" if in_channels == 3 else None,
+        in_channels=in_channels,
+        classes=num_classes,
+    )
+
+
+@register_model("deeplabv3plus_efficientnet_b3")
+def deeplabv3plus_efficientnet_b3(in_channels: int = 3, num_classes: int = 4, **kwargs):
+    """DeepLabV3+ with EfficientNet-B3 encoder."""
+    return smp.DeepLabV3Plus(
+        encoder_name="efficientnet-b3",
         encoder_weights="imagenet" if in_channels == 3 else None,
         in_channels=in_channels,
         classes=num_classes,

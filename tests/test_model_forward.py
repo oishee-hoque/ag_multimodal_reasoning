@@ -65,3 +65,34 @@ class TestModelForward:
         unet = create_model("unet_resnet34", in_channels=5, num_classes=4)
         deeplab = create_model("deeplabv3plus_resnet50", in_channels=5, num_classes=4)
         assert type(unet) != type(deeplab)
+
+    def test_deeplabv3plus_resnet34_forward(self):
+        """DeepLabV3+ ResNet-34 forward pass (no pretrained to avoid network)."""
+        model = smp.DeepLabV3Plus(
+            encoder_name="resnet34", encoder_weights=None, in_channels=3, classes=4,
+        )
+        model.eval()
+        x = torch.randn(2, 3, 224, 224)
+        with torch.no_grad():
+            out = model(x)
+        assert out.shape == (2, 4, 224, 224)
+
+    def test_deeplabv3plus_resnet50_forward(self):
+        """DeepLabV3+ ResNet-50 forward pass (no pretrained to avoid network)."""
+        model = smp.DeepLabV3Plus(
+            encoder_name="resnet50", encoder_weights=None, in_channels=3, classes=4,
+        )
+        model.eval()
+        x = torch.randn(2, 3, 224, 224)
+        with torch.no_grad():
+            out = model(x)
+        assert out.shape == (2, 4, 224, 224)
+
+    def test_deeplabv3plus_multichannel_forward(self):
+        """Test DeepLabV3+ with non-RGB input (no pretrained weights)."""
+        model = create_model("deeplabv3plus_resnet50", in_channels=42, num_classes=4)
+        model.eval()
+        x = torch.randn(2, 42, 224, 224)
+        with torch.no_grad():
+            out = model(x)
+        assert out.shape == (2, 4, 224, 224)
