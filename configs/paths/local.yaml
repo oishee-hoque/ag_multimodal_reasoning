@@ -1,5 +1,5 @@
 # Local development paths
 data_root: /scratch/gza5dr/IrrigationType_experiments/Colorado/Data/Claude_Code/irrigation_dataset
 train_state: ${paths.data_root}/Utah
-test_state: ${paths.data_root}/Colorado_Div1
+test_state: ${paths.data_root}/Colorado_Div5
 output_dir: ./outputs/irrigation-reasoning
