@@ -18,14 +18,13 @@ import numpy as np
 from irrigation.data.dataset import IrrigationDataset
 from irrigation.data.bands import get_band_config
 from irrigation.data.transforms import get_train_transforms, get_val_transforms
-from irrigation.data.noise import combined_cleaning, erode_labels, ndvi_ignore_mask
+from irrigation.data.noise import ndvi_bidirectional_mask, ndvi_ignore_mask
 
 
 NOISE_FUNCTIONS = {
     "none": None,
-    "erode": erode_labels,
     "ndvi_mask": ndvi_ignore_mask,
-    "combined": combined_cleaning,
+    "ndvi_bidirectional": ndvi_bidirectional_mask,
 }
 
 
@@ -52,9 +51,10 @@ class IrrigationDataModule(pl.LightningDataModule):
         split_mode: str = "cross_state",  # "cross_state" or "within_state"
         val_fraction: float = 0.15,
         test_fraction: float = 0.15,  # only for within_state
-        noise_strategy: str = "none",  # "none", "erode", "ndvi_mask", "combined"
-        erosion_pixels: int = 2,
-        ndvi_threshold: float = 0.4,
+        noise_strategy: str = "none",  # "none", "ndvi_mask", "ndvi_bidirectional"
+        high_threshold: float = 0.4,
+        low_threshold: float = 0.15,
+        ndvi_threshold: float = 0.4,  # backward compat for ndvi_mask
         batch_size: int = 16,
         num_workers: int = 4,
         pin_memory: bool = True,
@@ -79,21 +79,22 @@ class IrrigationDataModule(pl.LightningDataModule):
         self.label_transform_fn = NOISE_FUNCTIONS.get(noise_strategy)
 
         # If the noise function needs extra args, wrap it
-        if noise_strategy == "erode":
-            _erosion_px = erosion_pixels
-            self.label_transform_fn = lambda l, i: erode_labels(l, i, _erosion_px)
-        elif noise_strategy == "ndvi_mask":
+        if noise_strategy == "ndvi_mask":
             _ndvi_thresh = ndvi_threshold
             _n_seasons = len(self.band_config.seasons)
             self.label_transform_fn = lambda l, i: ndvi_ignore_mask(
                 l, i, ndvi_threshold=_ndvi_thresh, seasons_axis_size=_n_seasons
             )
-        elif noise_strategy == "combined":
-            _erosion_px = erosion_pixels
-            _ndvi_thresh = ndvi_threshold
+        elif noise_strategy == "ndvi_bidirectional":
+            _high_thresh = high_threshold
+            _low_thresh = low_threshold
             _n_seasons = len(self.band_config.seasons)
-            self.label_transform_fn = lambda l, i: combined_cleaning(
-                l, i, _erosion_px, 9, _ndvi_thresh, _n_seasons
+            self.label_transform_fn = lambda l, i: ndvi_bidirectional_mask(
+                l, i,
+                ndvi_band_index=9,
+                high_threshold=_high_thresh,
+                low_threshold=_low_thresh,
+                seasons_axis_size=_n_seasons,
             )
 
     def _get_tile_ids(self, state_path: Path) -> list[int]:

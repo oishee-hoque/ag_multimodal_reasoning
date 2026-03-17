@@ -1,10 +1,10 @@
 """
 Label noise reduction utilities.
 
-Two strategies implemented:
+Strategies implemented:
 1. Polygon erosion — shrink label boundaries inward to remove edge noise
 2. NDVI-based ignore masking — mark unlabeled high-NDVI pixels as ignore (255)
-   instead of background (0) to avoid penalizing correct predictions
+3. Bidirectional NDVI masking — also marks labeled-but-fallow pixels as ignore
 
 These are applied as label_transform functions passed to the dataset.
 """
@@ -93,20 +93,76 @@ def ndvi_ignore_mask(
     return cleaned
 
 
-def combined_cleaning(
+def ndvi_bidirectional_mask(
     label: np.ndarray,
     image: np.ndarray,
-    erosion_pixels: int = 2,
     ndvi_band_index: int = 9,
-    ndvi_threshold: float = 0.4,
+    high_threshold: float = 0.4,
+    low_threshold: float = 0.15,
     seasons_axis_size: int = 1,
 ) -> np.ndarray:
     """
-    Apply both erosion and NDVI ignore masking.
-    Erosion runs first, then NDVI masking.
+    Bidirectional NDVI-based label cleaning.
+
+    Two types of noise are addressed:
+    1. Unlabeled but irrigated: background pixels (class 0) with high NDVI
+       are likely unlabeled irrigated fields → set to ignore (255)
+    2. Labeled but not irrigated: irrigated pixels (class 1/2/3) with very
+       low NDVI are likely mislabeled or fallow → set to ignore (255)
+
+    Uses max NDVI across available seasons so that a field only needs to
+    show high/low greenness in at least one season to be flagged.
+
+    Args:
+        label: (224, 224) uint8 label array
+        image: (C, 224, 224) float32 image array
+        ndvi_band_index: index of NDVI median within each season's 14 bands (default 9)
+        high_threshold: NDVI above this for unlabeled pixels → likely irrigated → ignore
+        low_threshold: NDVI below this for labeled irrigated pixels → likely mislabeled → ignore
+        seasons_axis_size: number of seasons in the input stack (1 or 3)
+
+    Returns:
+        Cleaned label array with suspicious pixels set to 255 (ignore_index)
     """
-    label = erode_labels(label, image, erosion_pixels)
-    label = ndvi_ignore_mask(
-        label, image, ndvi_band_index, ndvi_threshold, seasons_axis_size
-    )
-    return label
+    cleaned = label.copy()
+
+    # Extract NDVI band(s) from the stacked channels
+    bands_per_season = image.shape[0] // seasons_axis_size
+    ndvi_values = []
+    for s in range(seasons_axis_size):
+        start = s * bands_per_season
+        ndvi_values.append(image[start + ndvi_band_index])
+
+    # Max NDVI across available seasons
+    max_ndvi = np.max(np.stack(ndvi_values), axis=0)  # (224, 224)
+
+    # Direction 1: unlabeled but high NDVI → ignore
+    suspicious_bg = (label == 0) & (max_ndvi > high_threshold)
+    cleaned[suspicious_bg] = 255
+
+    # Direction 2: labeled irrigated but low NDVI → ignore
+    is_irrigated = (label == 1) | (label == 2) | (label == 3)
+    suspicious_irr = is_irrigated & (max_ndvi < low_threshold)
+    cleaned[suspicious_irr] = 255
+
+    return cleaned
+
+
+# def combined_cleaning(
+#     label: np.ndarray,
+#     image: np.ndarray,
+#     erosion_pixels: int = 2,
+#     ndvi_band_index: int = 9,
+#     high_threshold: float = 0.4,
+#     low_threshold: float = 0.15,
+#     seasons_axis_size: int = 1,
+# ) -> np.ndarray:
+#     """
+#     Apply both erosion and bidirectional NDVI masking.
+#     Erosion runs first, then NDVI masking.
+#     """
+#     label = erode_labels(label, image, erosion_pixels)
+#     label = ndvi_bidirectional_mask(
+#         label, image, ndvi_band_index, high_threshold, low_threshold, seasons_axis_size
+#     )
+#     return label

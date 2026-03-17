@@ -4,5 +4,5 @@ defaults:
   - override /model: unet_resnet34
   - override /training: default
 
-experiment_name: "step2_noise_reduced"
-tags: ["step2", "rgb", "noise_reduction"]
+experiment_name: "step2_ndvi_bidirectional"
+tags: ["step2", "rgb", "noise_reduction", "bidirectional"]
