@@ -1,5 +1,5 @@
 # Adjust these to your actual shared filesystem paths
-data_root: /shared/data/irrigation
-train_state: ${paths.data_root}/Colorado
-test_state: ${paths.data_root}/Utah
+data_root: /scratch/gza5dr/IrrigationType_experiments/Colorado/Data/Claude_Code/irrigation_dataset
+train_state: ${paths.data_root}/Utah
+test_state: ${paths.data_root}/Colorado_Div1
 output_dir: /shared/outputs/irrigation-reasoning
