@@ -1,0 +1,6 @@
+band_group: rgb_s4
+split_mode: cross_state
+val_fraction: 0.15
+noise_strategy: none
+batch_size: 16
+num_workers: 4

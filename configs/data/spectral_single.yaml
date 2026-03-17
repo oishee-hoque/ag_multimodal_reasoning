@@ -1,0 +1,8 @@
+band_group: spectral_s4
+split_mode: cross_state
+val_fraction: 0.15
+noise_strategy: combined
+erosion_pixels: 2
+ndvi_threshold: 0.4
+batch_size: 16
+num_workers: 4
