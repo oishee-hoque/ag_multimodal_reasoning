@@ -217,14 +217,14 @@ class IrrigationDataModule(pl.LightningDataModule):
                 val_ids,
                 self.band_config,
                 transform=get_val_transforms(),
-                label_transform=self.label_transform_fn,
+                label_transform=None,
             )
             self.test_dataset = IrrigationDataset(
                 self.test_state_path,
                 test_ids,
                 self.band_config,
                 transform=get_val_transforms(),
-                label_transform=self.label_transform_fn,
+                label_transform=None,
             )
 
         elif self.split_mode == "within_state":
@@ -248,14 +248,14 @@ class IrrigationDataModule(pl.LightningDataModule):
                 val_ids,
                 self.band_config,
                 transform=get_val_transforms(),
-                label_transform=self.label_transform_fn,
+                label_transform=None,
             )
             self.test_dataset = IrrigationDataset(
                 self.train_state_path,
                 test_ids,
                 self.band_config,
                 transform=get_val_transforms(),
-                label_transform=self.label_transform_fn,
+                label_transform=None,
             )
 
     def train_dataloader(self):
