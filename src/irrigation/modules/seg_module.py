@@ -215,8 +215,11 @@ class SegmentationModule(pl.LightningModule):
             lbl = labels[i].cpu().numpy()
             pred = preds[i].cpu().numpy()
 
-            # Create colored label maps
-            lbl_rgb = class_colors[np.clip(lbl, 0, 3)] / 255.0
+            # Create colored label maps (ignore_index=255 → gray)
+            lbl_safe = np.where(lbl == 255, 4, np.clip(lbl, 0, 3))
+            ignore_color = np.array([[128, 128, 128]])  # gray for ignored pixels
+            all_colors = np.concatenate([class_colors, ignore_color], axis=0)
+            lbl_rgb = all_colors[lbl_safe] / 255.0
             pred_rgb = class_colors[np.clip(pred, 0, 3)] / 255.0
 
             axes[i, 0].imshow(rgb)
