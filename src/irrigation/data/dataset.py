@@ -32,6 +32,8 @@ class IrrigationDataset(Dataset):
         label_transform: Optional label cleaning function (erosion, ignore masking)
         return_metadata: Whether to include metadata dict in output
         use_cache: If True, cache tiles as .npy files for faster reads
+        normalize_mean: Per-channel mean for z-score normalization (shape: num_channels)
+        normalize_std: Per-channel std for z-score normalization (shape: num_channels)
     """
 
     def __init__(
@@ -43,6 +45,8 @@ class IrrigationDataset(Dataset):
         label_transform=None,
         return_metadata: bool = False,
         use_cache: bool = True,
+        normalize_mean: np.ndarray | None = None,
+        normalize_std: np.ndarray | None = None,
     ):
         self.data_root = Path(data_root)
         self.tile_ids = sorted(tile_ids)
@@ -51,6 +55,8 @@ class IrrigationDataset(Dataset):
         self.label_transform = label_transform
         self.return_metadata = return_metadata
         self.use_cache = use_cache
+        self.normalize_mean = normalize_mean
+        self.normalize_std = normalize_std
 
         # Cache directory sits alongside images/labels
         self.cache_dir = self.data_root / "npy_cache"
@@ -154,6 +160,14 @@ class IrrigationDataset(Dataset):
             image_hwc = transformed["image"]
             label = transformed["mask"]
             image = np.transpose(image_hwc, (2, 0, 1))  # (C, 224, 224)
+
+        # Per-channel z-score normalization
+        if self.normalize_mean is not None and self.normalize_std is not None:
+            image = image.astype(np.float32)
+            # image is (C, H, W) — normalize each channel
+            mean = self.normalize_mean[:, None, None]  # (C, 1, 1)
+            std = self.normalize_std[:, None, None]  # (C, 1, 1)
+            image = (image - mean) / std
 
         # Convert to tensors
         image_tensor = torch.from_numpy(image.copy()).float()
