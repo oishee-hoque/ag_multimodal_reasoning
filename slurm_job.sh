@@ -7,7 +7,7 @@
 #SBATCH --cpus-per-task=8
 #SBATCH --mem=64GB
 #SBATCH --time=12:00:00
-#SBATCH --account=nssac_students
+#SBATCH --account=gza5dr
 
 # Activate your conda env
 module load miniforge
