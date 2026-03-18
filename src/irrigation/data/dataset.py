@@ -121,6 +121,7 @@ class IrrigationDataset(Dataset):
 
         # Load and stack bands across seasons
         all_bands = []
+        full_bands = []  # full 14-band data for label transform (e.g. NDVI noise masking)
         for season in self.band_config.seasons:
             if self.use_cache:
                 data = self._load_image_cached(tile_name, season)
@@ -128,6 +129,8 @@ class IrrigationDataset(Dataset):
                 data = self._load_image_tif(tile_name, season)
             selected = data[self.band_config.band_indices]  # (n_bands, 224, 224)
             all_bands.append(selected)
+            if self.label_transform is not None:
+                full_bands.append(data)
 
         image = np.concatenate(all_bands, axis=0)  # (num_channels, 224, 224)
 
@@ -138,8 +141,10 @@ class IrrigationDataset(Dataset):
             label = self._load_label_tif(tile_name)
 
         # Apply label cleaning (erosion, ignore masking) if configured
+        # Use full-band image so noise functions can access any band (e.g. NDVI at index 9)
         if self.label_transform is not None:
-            label = self.label_transform(label, image)
+            full_image = np.concatenate(full_bands, axis=0)
+            label = self.label_transform(label, full_image)
 
         # Apply spatial augmentations (albumentations expects HWC for image)
         if self.transform is not None:
