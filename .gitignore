@@ -44,6 +44,8 @@ Thumbs.db
 #files
 notes.txt
 *.json
+*.out
+*.err
 
 #folder
 conda_env

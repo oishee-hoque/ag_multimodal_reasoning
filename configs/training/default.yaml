@@ -2,7 +2,7 @@ lr: 1e-3
 weight_decay: 1e-4
 loss_fn: ce  # "ce", "dice", or "dice_ce"
 scheduler: cosine
-max_epochs: 2
+max_epochs: 100
 patience: 20
 batch_size: 32
 num_workers: 8

@@ -13,3 +13,7 @@ wandb:
 
 tags: []
 deterministic: false
+
+training:
+  loss_fn: dice_ce
+
