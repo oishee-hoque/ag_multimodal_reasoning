@@ -109,6 +109,9 @@ def train(cfg: DictConfig):
     # Train
     trainer.fit(module, datamodule=datamodule)
 
+    # Validate on best checkpoint (get clean val metrics before test overwrites them)
+    val_results = trainer.validate(module, datamodule=datamodule, ckpt_path="best")
+
     # Test on best checkpoint
     test_results = trainer.test(module, datamodule=datamodule, ckpt_path="best")
 
@@ -123,10 +126,7 @@ def train(cfg: DictConfig):
         "max_epochs": cfg.training.max_epochs,
         "best_checkpoint": trainer.checkpoint_callback.best_model_path,
         "best_val_mIoU": float(trainer.checkpoint_callback.best_model_score or 0),
-        "val_metrics": {
-            k: float(v) for k, v in trainer.callback_metrics.items()
-            if k.startswith("val/")
-        },
+        "val_metrics": val_results[0] if val_results else {},
         "test_metrics": test_results[0] if test_results else {},
         "config": OmegaConf.to_container(cfg, resolve=True),
     }
