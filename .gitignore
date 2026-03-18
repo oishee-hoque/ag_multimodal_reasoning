@@ -50,4 +50,5 @@ notes.txt
 #folder
 conda_env
 irrigation-reasoning
-
+slurm
+results
