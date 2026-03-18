@@ -44,6 +44,7 @@ class SegmentationModule(pl.LightningModule):
         num_classes: int = 4,
         class_weights: list[float] | None = None,
         ignore_index: int = 255,
+        loss_fn: str = "ce",
         lr: float = 1e-3,
         weight_decay: float = 1e-4,
         scheduler: str = "cosine",
@@ -62,6 +63,7 @@ class SegmentationModule(pl.LightningModule):
         weight = torch.tensor(class_weights) if class_weights else None
         self.register_buffer("class_weight", weight)
         self.ignore_index = ignore_index
+        self.loss_fn = loss_fn
         self.num_classes = num_classes
         self.class_names = class_names or [
             "background",
@@ -84,15 +86,49 @@ class SegmentationModule(pl.LightningModule):
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         return self.model(x)
 
+    def _dice_loss(
+        self, logits: torch.Tensor, labels: torch.Tensor, smooth: float = 1.0
+    ) -> torch.Tensor:
+        """Per-class dice loss, ignoring pixels with ignore_index."""
+        mask = labels != self.ignore_index
+        labels_masked = labels.clone()
+        labels_masked[~mask] = 0
+
+        probs = F.softmax(logits, dim=1)  # (B, C, H, W)
+        one_hot = F.one_hot(labels_masked, self.num_classes)  # (B, H, W, C)
+        one_hot = one_hot.permute(0, 3, 1, 2).float()  # (B, C, H, W)
+
+        # Zero out ignored pixels
+        mask_expanded = mask.unsqueeze(1).float()  # (B, 1, H, W)
+        probs = probs * mask_expanded
+        one_hot = one_hot * mask_expanded
+
+        dims = (0, 2, 3)  # sum over batch, H, W
+        intersection = (probs * one_hot).sum(dim=dims)
+        cardinality = probs.sum(dim=dims) + one_hot.sum(dim=dims)
+
+        dice_score = (2.0 * intersection + smooth) / (cardinality + smooth)
+        return 1.0 - dice_score.mean()
+
     def _compute_loss(
         self, logits: torch.Tensor, labels: torch.Tensor
     ) -> torch.Tensor:
-        return F.cross_entropy(
-            logits,
-            labels,
-            weight=self.class_weight,
-            ignore_index=self.ignore_index,
-        )
+        if self.loss_fn == "dice":
+            return self._dice_loss(logits, labels)
+        elif self.loss_fn == "dice_ce":
+            ce = F.cross_entropy(
+                logits, labels,
+                weight=self.class_weight,
+                ignore_index=self.ignore_index,
+            )
+            dice = self._dice_loss(logits, labels)
+            return ce + dice
+        else:  # "ce" (default)
+            return F.cross_entropy(
+                logits, labels,
+                weight=self.class_weight,
+                ignore_index=self.ignore_index,
+            )
 
     def training_step(self, batch: dict, batch_idx: int) -> torch.Tensor:
         logits = self(batch["image"])  # (B, C, H, W)
