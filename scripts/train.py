@@ -15,8 +15,11 @@ Usage:
     sbatch slurm_job.sh scripts/train.py experiment=step1_rgb_baseline
 """
 
+import json
+from pathlib import Path
+
 import hydra
-from omegaconf import DictConfig
+from omegaconf import DictConfig, OmegaConf
 import pytorch_lightning as pl
 from pytorch_lightning.callbacks import (
     ModelCheckpoint,
@@ -107,7 +110,24 @@ def train(cfg: DictConfig):
     trainer.fit(module, datamodule=datamodule)
 
     # Test on best checkpoint
-    trainer.test(module, datamodule=datamodule, ckpt_path="best")
+    test_results = trainer.test(module, datamodule=datamodule, ckpt_path="best")
+
+    # Save results to JSON
+    results = {
+        "config": OmegaConf.to_container(cfg, resolve=True),
+        "best_checkpoint": trainer.checkpoint_callback.best_model_path,
+        "best_val_mIoU": float(trainer.checkpoint_callback.best_model_score or 0),
+        "val_metrics": {
+            k: float(v) for k, v in trainer.callback_metrics.items()
+            if k.startswith("val/")
+        },
+        "test_metrics": test_results[0] if test_results else {},
+    }
+
+    output_path = Path("results.json")
+    with open(output_path, "w") as f:
+        json.dump(results, f, indent=2)
+    print(f"Results saved to {output_path.resolve()}")
 
 
 if __name__ == "__main__":
