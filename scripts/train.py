@@ -15,8 +15,11 @@ Usage:
     sbatch slurm_job.sh scripts/train.py experiment=step1_rgb_baseline
 """
 
+import json
+from pathlib import Path
+
 import hydra
-from omegaconf import DictConfig
+from omegaconf import DictConfig, OmegaConf
 import pytorch_lightning as pl
 from pytorch_lightning.callbacks import (
     ModelCheckpoint,
@@ -59,6 +62,7 @@ def train(cfg: DictConfig):
         in_channels=band_config.num_channels,
         num_classes=cfg.model.num_classes,
         class_weights=cfg.model.get("class_weights"),
+        loss_fn=cfg.training.get("loss_fn", "ce"),
         lr=cfg.training.lr,
         weight_decay=cfg.training.weight_decay,
         scheduler=cfg.training.scheduler,
@@ -106,8 +110,35 @@ def train(cfg: DictConfig):
     # Train
     trainer.fit(module, datamodule=datamodule)
 
+    # Validate on best checkpoint (get clean val metrics before test overwrites them)
+    val_results = trainer.validate(module, datamodule=datamodule, ckpt_path="best")
+
     # Test on best checkpoint
-    trainer.test(module, datamodule=datamodule, ckpt_path="best")
+    test_results = trainer.test(module, datamodule=datamodule, ckpt_path="best")
+
+    # Save results to JSON
+    results = {
+        "model_name": cfg.model.name,
+        "band_group": cfg.data.band_group,
+        "noise_strategy": cfg.data.noise_strategy,
+        "experiment_name": cfg.get("experiment_name", None),
+        "num_classes": cfg.model.num_classes,
+        "in_channels": band_config.num_channels,
+        "max_epochs": cfg.training.max_epochs,
+        "best_checkpoint": trainer.checkpoint_callback.best_model_path,
+        "best_val_mIoU": float(trainer.checkpoint_callback.best_model_score or 0),
+        "val_metrics": val_results[0] if val_results else {},
+        "test_metrics": test_results[0] if test_results else {},
+        "config": OmegaConf.to_container(cfg, resolve=True),
+    }
+
+    results_dir = Path("results")
+    results_dir.mkdir(exist_ok=True)
+    exp_name = cfg.get("experiment_name") or f"{cfg.model.name}_{cfg.data.band_group}_{cfg.data.noise_strategy}"
+    output_path = results_dir / f"{exp_name}.json"
+    with open(output_path, "w") as f:
+        json.dump(results, f, indent=2)
+    print(f"Results saved to {output_path.resolve()}")
 
 
 if __name__ == "__main__":

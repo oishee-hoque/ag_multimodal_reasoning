@@ -1,7 +1,7 @@
-"""Tests for bidirectional NDVI label cleaning."""
+"""Tests for NDVI-based label cleaning strategies."""
 
 import numpy as np
-from irrigation.data.noise import ndvi_bidirectional_mask
+from irrigation.data.noise import ndvi_bidirectional_mask, ndvi_relabel_background
 
 
 def test_bidirectional_mask():
@@ -77,3 +77,65 @@ def test_bidirectional_mask_multitemporal():
 
     # Should stay labeled because max NDVI across seasons = 0.5
     assert result[0, 0] == 1
+
+
+def test_relabel_background():
+    """Test that low-NDVI irrigated pixels are relabeled as background (0)."""
+    label = np.array([
+        [0, 0, 1, 1],
+        [0, 0, 1, 2],
+        [0, 0, 0, 3],
+        [0, 0, 0, 0],
+    ], dtype=np.uint8)
+
+    image = np.zeros((14, 4, 4), dtype=np.float32)
+    image[9, 0, 2] = 0.05  # low NDVI, labeled flood → should become 0
+    image[9, 0, 3] = 0.5   # normal NDVI, labeled flood → should stay 1
+    image[9, 1, 2] = 0.5   # normal NDVI, labeled flood → should stay 1
+    image[9, 1, 3] = 0.5   # normal NDVI, labeled sprinkler → should stay 2
+    image[9, 2, 3] = 0.1   # low NDVI, labeled drip → should become 0
+    image[9, 3, 0] = 0.1   # low NDVI, background → should stay 0
+
+    result = ndvi_relabel_background(
+        label, image,
+        ndvi_band_index=9,
+        low_threshold=0.15,
+        seasons_axis_size=1,
+    )
+
+    # Low NDVI irrigated → relabeled as background (0), NOT 255
+    assert result[0, 2] == 0
+    assert result[2, 3] == 0
+    # Normal NDVI irrigated → unchanged
+    assert result[0, 3] == 1
+    assert result[1, 2] == 1
+    assert result[1, 3] == 2
+    # Background stays background
+    assert result[3, 0] == 0
+
+
+def test_relabel_background_multitemporal():
+    """Test relabel with 3 seasons — uses max NDVI across seasons."""
+    label = np.array([[1, 2]], dtype=np.uint8)
+
+    image = np.zeros((42, 1, 2), dtype=np.float32)
+
+    # Pixel (0,0): low in s1, high in s2 → max=0.5, should stay labeled
+    image[9, 0, 0] = 0.05
+    image[23, 0, 0] = 0.5
+    image[37, 0, 0] = 0.3
+
+    # Pixel (0,1): low in all seasons → max=0.1, should become background
+    image[9, 0, 1] = 0.05
+    image[23, 0, 1] = 0.1
+    image[37, 0, 1] = 0.08
+
+    result = ndvi_relabel_background(
+        label, image,
+        ndvi_band_index=9,
+        low_threshold=0.15,
+        seasons_axis_size=3,
+    )
+
+    assert result[0, 0] == 1  # kept — active in season 2
+    assert result[0, 1] == 0  # relabeled — low NDVI in all seasons
