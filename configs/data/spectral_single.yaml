@@ -4,5 +4,5 @@ val_fraction: 0.15
 noise_strategy: ndvi_bidirectional
 high_threshold: 0.4
 low_threshold: 0.15
-batch_size: 16
-num_workers: 4
+batch_size: 32
+num_workers: 8

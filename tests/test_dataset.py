@@ -7,7 +7,7 @@ import torch
 from irrigation.data.dataset import IrrigationDataset
 from irrigation.data.bands import get_band_config
 from irrigation.data.transforms import get_train_transforms, get_val_transforms
-from irrigation.data.noise import erode_labels, ndvi_ignore_mask, combined_cleaning
+from irrigation.data.noise import erode_labels, ndvi_ignore_mask
 
 
 class TestIrrigationDataset:
@@ -178,19 +178,18 @@ class TestNoiseReduction:
         cleaned = ndvi_ignore_mask(label, image)
         np.testing.assert_array_equal(label, cleaned)
 
-    def test_combined_cleaning(self):
-        """Combined cleaning applies both erosion and NDVI masking."""
-        label = np.zeros((50, 50), dtype=np.uint8)
-        label[10:40, 10:40] = 2
-        image = np.zeros((14, 50, 50), dtype=np.float32)
-        image[9, 0:10, 0:10] = 0.6  # High NDVI in background
+    def test_ndvi_mask_multitemporal(self):
+        """NDVI masking uses max across seasons for multi-temporal input."""
+        label = np.zeros((4, 4), dtype=np.uint8)
+        # 28 channels (14 bands × 2 seasons)
+        image = np.zeros((28, 4, 4), dtype=np.float32)
+        # Season 1 NDVI low, season 2 NDVI high for one pixel
+        image[9, 0, 0] = 0.1    # season 1
+        image[23, 0, 0] = 0.6   # season 2 (offset by 14)
 
-        cleaned = combined_cleaning(
-            label, image, erosion_pixels=2, ndvi_band_index=9,
-            ndvi_threshold=0.4, seasons_axis_size=1,
+        cleaned = ndvi_ignore_mask(
+            label, image, ndvi_band_index=9,
+            ndvi_threshold=0.4, seasons_axis_size=2,
         )
-
-        # Both erosion and NDVI masking should have produced 255 pixels
-        assert (cleaned == 255).sum() > 0
-        # High NDVI background should be 255
-        assert (cleaned[0:10, 0:10] == 255).all()
+        # Max NDVI = 0.6 > 0.4, so background pixel should become ignore
+        assert cleaned[0, 0] == 255

@@ -5,10 +5,10 @@ Loads GeoTIFF patches and labels, extracts configured bands/seasons,
 applies transforms, and returns tensors ready for training.
 
 Key design decisions:
-- Reads raw GeoTIFFs with rasterio (not pre-converted to numpy)
+- Optional numpy caching: converts GeoTIFFs to .npy on first access
+  for much faster subsequent reads (avoids rasterio overhead per iteration)
 - Supports configurable band groups via BandConfig
 - Handles ignore_index=255 for masked labels
-- Lazy loading (no full dataset in memory)
 """
 
 import torch
@@ -31,6 +31,7 @@ class IrrigationDataset(Dataset):
         transform: Optional albumentations transform pipeline
         label_transform: Optional label cleaning function (erosion, ignore masking)
         return_metadata: Whether to include metadata dict in output
+        use_cache: If True, cache tiles as .npy files for faster reads
     """
 
     def __init__(
@@ -41,6 +42,7 @@ class IrrigationDataset(Dataset):
         transform=None,
         label_transform=None,
         return_metadata: bool = False,
+        use_cache: bool = True,
     ):
         self.data_root = Path(data_root)
         self.tile_ids = sorted(tile_ids)
@@ -48,6 +50,10 @@ class IrrigationDataset(Dataset):
         self.transform = transform
         self.label_transform = label_transform
         self.return_metadata = return_metadata
+        self.use_cache = use_cache
+
+        # Cache directory sits alongside images/labels
+        self.cache_dir = self.data_root / "npy_cache"
 
         # Validate that all tile files exist
         self._validate_tiles()
@@ -69,6 +75,43 @@ class IrrigationDataset(Dataset):
                 f"Missing {len(missing)} files. First 5: {missing[:5]}"
             )
 
+    def _load_image_tif(self, tile_name: str, season: str) -> np.ndarray:
+        """Load image from GeoTIFF."""
+        img_path = self.data_root / "images" / f"{tile_name}_{season}.tif"
+        with rasterio.open(img_path) as src:
+            return src.read()  # (14, 224, 224)
+
+    def _load_label_tif(self, tile_name: str) -> np.ndarray:
+        """Load label from GeoTIFF."""
+        label_path = self.data_root / "labels" / f"{tile_name}_label.tif"
+        with rasterio.open(label_path) as src:
+            return src.read(1)  # (224, 224)
+
+    def _get_cache_path(self, tile_name: str, kind: str) -> Path:
+        """Get numpy cache file path for a tile."""
+        return self.cache_dir / f"{tile_name}_{kind}.npy"
+
+    def _load_image_cached(self, tile_name: str, season: str) -> np.ndarray:
+        """Load image, using numpy cache if available."""
+        cache_path = self._get_cache_path(tile_name, f"img_{season}")
+        if cache_path.exists():
+            return np.load(cache_path)
+        data = self._load_image_tif(tile_name, season)
+        # Write cache (create dir if needed)
+        cache_path.parent.mkdir(parents=True, exist_ok=True)
+        np.save(cache_path, data)
+        return data
+
+    def _load_label_cached(self, tile_name: str) -> np.ndarray:
+        """Load label, using numpy cache if available."""
+        cache_path = self._get_cache_path(tile_name, "label")
+        if cache_path.exists():
+            return np.load(cache_path)
+        data = self._load_label_tif(tile_name)
+        cache_path.parent.mkdir(parents=True, exist_ok=True)
+        np.save(cache_path, data)
+        return data
+
     def __len__(self) -> int:
         return len(self.tile_ids)
 
@@ -79,19 +122,20 @@ class IrrigationDataset(Dataset):
         # Load and stack bands across seasons
         all_bands = []
         for season in self.band_config.seasons:
-            img_path = self.data_root / "images" / f"{tile_name}_{season}.tif"
-            with rasterio.open(img_path) as src:
-                # src.read() returns (bands, H, W) as float32
-                data = src.read()  # (14, 224, 224)
+            if self.use_cache:
+                data = self._load_image_cached(tile_name, season)
+            else:
+                data = self._load_image_tif(tile_name, season)
             selected = data[self.band_config.band_indices]  # (n_bands, 224, 224)
             all_bands.append(selected)
 
         image = np.concatenate(all_bands, axis=0)  # (num_channels, 224, 224)
 
         # Load label
-        label_path = self.data_root / "labels" / f"{tile_name}_label.tif"
-        with rasterio.open(label_path) as src:
-            label = src.read(1)  # (224, 224) as uint8
+        if self.use_cache:
+            label = self._load_label_cached(tile_name)
+        else:
+            label = self._load_label_tif(tile_name)
 
         # Apply label cleaning (erosion, ignore masking) if configured
         if self.label_transform is not None:
