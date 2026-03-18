@@ -131,7 +131,10 @@ def train(cfg: DictConfig):
         "config": OmegaConf.to_container(cfg, resolve=True),
     }
 
-    output_path = Path("results.json")
+    results_dir = Path("results")
+    results_dir.mkdir(exist_ok=True)
+    exp_name = cfg.get("experiment_name") or f"{cfg.model.name}_{cfg.data.band_group}_{cfg.data.noise_strategy}"
+    output_path = results_dir / f"{exp_name}.json"
     with open(output_path, "w") as f:
         json.dump(results, f, indent=2)
     print(f"Results saved to {output_path.resolve()}")
