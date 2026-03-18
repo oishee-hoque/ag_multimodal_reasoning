@@ -1,24 +1,19 @@
 #!/bin/bash
 #SBATCH --job-name=irrigation
+#SBATCH --output=%u-%j.out
+#SBATCH --error=%u-%j.err
 #SBATCH --partition=gpu
-#SBATCH --nodes=1
-#SBATCH --ntasks-per-node=1
+#SBATCH --gres=gpu:a100:1
 #SBATCH --cpus-per-task=8
-#SBATCH --gres=gpu:1
-#SBATCH --mem=32G
+#SBATCH --mem=64GB
 #SBATCH --time=12:00:00
-#SBATCH --output=logs/slurm/%j_%x.out
-#SBATCH --error=logs/slurm/%j_%x.err
+#SBATCH --account=gza5dr
 
-# Load modules (adjust for your HPC)
-module load anaconda3
-module load cuda/12.1
+# Activate your conda env
+module load miniforge
+source activate /sfs/weka/scratch/gza5dr/IrrigationType_experiments/mutli_reasoning/conda_env
 
-# Activate environment
-conda activate irrigation
+# Run from scratch (faster I/O than /home)
+cd /sfs/weka/scratch/gza5dr/IrrigationType_experiments/mutli_reasoning/ag_multimodal_reasoning
 
-# Create log directory
-mkdir -p logs/slurm
-
-# Run training with all arguments passed through
-python "$@"
+python scripts/train.py +experiment=step1_rgb_baseline
