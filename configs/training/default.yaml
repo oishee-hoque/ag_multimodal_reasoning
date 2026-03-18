@@ -1,5 +1,6 @@
 lr: 1e-3
 weight_decay: 1e-4
+loss_fn: ce  # "ce", "dice", or "dice_ce"
 scheduler: cosine
 max_epochs: 2
 patience: 20

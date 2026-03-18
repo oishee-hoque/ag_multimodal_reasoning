@@ -62,6 +62,7 @@ def train(cfg: DictConfig):
         in_channels=band_config.num_channels,
         num_classes=cfg.model.num_classes,
         class_weights=cfg.model.get("class_weights"),
+        loss_fn=cfg.training.get("loss_fn", "ce"),
         lr=cfg.training.lr,
         weight_decay=cfg.training.weight_decay,
         scheduler=cfg.training.scheduler,

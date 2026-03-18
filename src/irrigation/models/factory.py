@@ -90,6 +90,28 @@ def deeplabv3plus_efficientnet_b3(in_channels: int = 3, num_classes: int = 4, **
     )
 
 
+@register_model("unet_swin_tiny")
+def unet_swin_tiny(in_channels: int = 3, num_classes: int = 4, **kwargs):
+    """U-Net with Swin Transformer Tiny encoder (via timm)."""
+    return smp.Unet(
+        encoder_name="tu-swin_tiny_patch4_window7_224",
+        encoder_weights="imagenet" if in_channels == 3 else None,
+        in_channels=in_channels,
+        classes=num_classes,
+    )
+
+
+@register_model("deeplabv3plus_swin_tiny")
+def deeplabv3plus_swin_tiny(in_channels: int = 3, num_classes: int = 4, **kwargs):
+    """DeepLabV3+ with Swin Transformer Tiny encoder (via timm)."""
+    return smp.DeepLabV3Plus(
+        encoder_name="tu-swin_tiny_patch4_window7_224",
+        encoder_weights="imagenet" if in_channels == 3 else None,
+        in_channels=in_channels,
+        classes=num_classes,
+    )
+
+
 def create_model(name: str, **kwargs):
     """
     Create a model by registered name.

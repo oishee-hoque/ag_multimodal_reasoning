@@ -18,13 +18,18 @@ import numpy as np
 from irrigation.data.dataset import IrrigationDataset
 from irrigation.data.bands import get_band_config
 from irrigation.data.transforms import get_train_transforms, get_val_transforms
-from irrigation.data.noise import ndvi_bidirectional_mask, ndvi_ignore_mask
+from irrigation.data.noise import (
+    ndvi_bidirectional_mask,
+    ndvi_ignore_mask,
+    ndvi_relabel_background,
+)
 
 
 NOISE_FUNCTIONS = {
     "none": None,
     "ndvi_mask": ndvi_ignore_mask,
     "ndvi_bidirectional": ndvi_bidirectional_mask,
+    "ndvi_relabel": ndvi_relabel_background,
 }
 
 
@@ -51,7 +56,7 @@ class IrrigationDataModule(pl.LightningDataModule):
         split_mode: str = "cross_state",  # "cross_state" or "within_state"
         val_fraction: float = 0.15,
         test_fraction: float = 0.15,  # only for within_state
-        noise_strategy: str = "none",  # "none", "ndvi_mask", "ndvi_bidirectional"
+        noise_strategy: str = "none",  # "none", "ndvi_mask", "ndvi_bidirectional", "ndvi_relabel"
         high_threshold: float = 0.4,
         low_threshold: float = 0.15,
         ndvi_threshold: float = 0.4,  # backward compat for ndvi_mask
@@ -93,6 +98,15 @@ class IrrigationDataModule(pl.LightningDataModule):
                 l, i,
                 ndvi_band_index=9,
                 high_threshold=_high_thresh,
+                low_threshold=_low_thresh,
+                seasons_axis_size=_n_seasons,
+            )
+        elif noise_strategy == "ndvi_relabel":
+            _low_thresh = low_threshold
+            _n_seasons = len(self.band_config.seasons)
+            self.label_transform_fn = lambda l, i: ndvi_relabel_background(
+                l, i,
+                ndvi_band_index=9,
                 low_threshold=_low_thresh,
                 seasons_axis_size=_n_seasons,
             )
