@@ -114,7 +114,13 @@ def train(cfg: DictConfig):
 
     # Save results to JSON
     results = {
-        "config": OmegaConf.to_container(cfg, resolve=True),
+        "model_name": cfg.model.name,
+        "band_group": cfg.data.band_group,
+        "noise_strategy": cfg.data.noise_strategy,
+        "experiment_name": cfg.get("experiment_name", None),
+        "num_classes": cfg.model.num_classes,
+        "in_channels": band_config.num_channels,
+        "max_epochs": cfg.training.max_epochs,
         "best_checkpoint": trainer.checkpoint_callback.best_model_path,
         "best_val_mIoU": float(trainer.checkpoint_callback.best_model_score or 0),
         "val_metrics": {
@@ -122,6 +128,7 @@ def train(cfg: DictConfig):
             if k.startswith("val/")
         },
         "test_metrics": test_results[0] if test_results else {},
+        "config": OmegaConf.to_container(cfg, resolve=True),
     }
 
     output_path = Path("results.json")
