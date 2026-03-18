@@ -18,6 +18,7 @@ import numpy as np
 from irrigation.data.dataset import IrrigationDataset
 from irrigation.data.bands import get_band_config
 from irrigation.data.transforms import get_train_transforms, get_val_transforms
+from irrigation.data.normalization import compute_band_statistics, get_imagenet_stats, S2_SCALE_FACTOR
 from irrigation.data.noise import (
     ndvi_bidirectional_mask,
     ndvi_ignore_mask,
@@ -188,6 +189,39 @@ class IrrigationDataModule(pl.LightningDataModule):
             tile_id_arr[test_idx].tolist(),
         )
 
+    def _compute_normalization_stats(
+        self, train_ids: list[int], data_root: Path
+    ) -> tuple[np.ndarray, np.ndarray]:
+        """
+        Compute normalization statistics from training tiles only.
+
+        For pretrained-compatible configs (RGB 3-ch): uses ImageNet stats
+        with Sentinel-2 reflectance scaled to [0, 1] via S2_SCALE_FACTOR.
+
+        For spectral/temporal: computes per-band z-score stats from training data.
+        """
+        if self.band_config.pretrained_compatible:
+            # ImageNet normalization — but we need to account for the fact
+            # that Sentinel-2 L2A values are DN (typically 0-10000).
+            # We'll scale to [0,1] first, then ImageNet stats apply.
+            # mean/std for the dataset become: imagenet_mean * scale, imagenet_std * scale
+            # so that (pixel / scale - imagenet_mean) / imagenet_std works out.
+            imagenet_mean, imagenet_std = get_imagenet_stats()
+            # Convert ImageNet stats to raw DN space:
+            # normalized = (raw / S2_SCALE - img_mean) / img_std
+            #            = raw / (S2_SCALE * img_std) - img_mean / img_std
+            # Equivalently: mean_raw = img_mean * S2_SCALE, std_raw = img_std * S2_SCALE
+            mean = imagenet_mean * S2_SCALE_FACTOR
+            std = imagenet_std * S2_SCALE_FACTOR
+            return mean, std
+        else:
+            # Compute dataset-specific per-band statistics from training tiles
+            print(f"Computing per-band normalization statistics from {len(train_ids)} training tiles...")
+            mean, std = compute_band_statistics(data_root, train_ids, self.band_config)
+            print(f"  Band means: {mean}")
+            print(f"  Band stds:  {std}")
+            return mean, std
+
     def setup(self, stage: str | None = None):
         """Create train/val/test datasets based on split mode."""
 
@@ -205,12 +239,19 @@ class IrrigationDataModule(pl.LightningDataModule):
 
             test_ids = self._get_tile_ids(self.test_state_path)
 
+            # Compute normalization stats from training tiles only
+            norm_mean, norm_std = self._compute_normalization_stats(
+                train_ids, self.train_state_path
+            )
+
             self.train_dataset = IrrigationDataset(
                 self.train_state_path,
                 train_ids,
                 self.band_config,
                 transform=get_train_transforms(),
                 label_transform=self.label_transform_fn,
+                normalize_mean=norm_mean,
+                normalize_std=norm_std,
             )
             self.val_dataset = IrrigationDataset(
                 self.train_state_path,
@@ -218,6 +259,8 @@ class IrrigationDataModule(pl.LightningDataModule):
                 self.band_config,
                 transform=get_val_transforms(),
                 label_transform=None,
+                normalize_mean=norm_mean,
+                normalize_std=norm_std,
             )
             self.test_dataset = IrrigationDataset(
                 self.test_state_path,
@@ -225,6 +268,8 @@ class IrrigationDataModule(pl.LightningDataModule):
                 self.band_config,
                 transform=get_val_transforms(),
                 label_transform=None,
+                normalize_mean=norm_mean,
+                normalize_std=norm_std,
             )
 
         elif self.split_mode == "within_state":
@@ -236,12 +281,19 @@ class IrrigationDataModule(pl.LightningDataModule):
                 self.test_fraction,
             )
 
+            # Compute normalization stats from training tiles only
+            norm_mean, norm_std = self._compute_normalization_stats(
+                train_ids, self.train_state_path
+            )
+
             self.train_dataset = IrrigationDataset(
                 self.train_state_path,
                 train_ids,
                 self.band_config,
                 transform=get_train_transforms(),
                 label_transform=self.label_transform_fn,
+                normalize_mean=norm_mean,
+                normalize_std=norm_std,
             )
             self.val_dataset = IrrigationDataset(
                 self.train_state_path,
@@ -249,6 +301,8 @@ class IrrigationDataModule(pl.LightningDataModule):
                 self.band_config,
                 transform=get_val_transforms(),
                 label_transform=None,
+                normalize_mean=norm_mean,
+                normalize_std=norm_std,
             )
             self.test_dataset = IrrigationDataset(
                 self.train_state_path,
@@ -256,6 +310,8 @@ class IrrigationDataModule(pl.LightningDataModule):
                 self.band_config,
                 transform=get_val_transforms(),
                 label_transform=None,
+                normalize_mean=norm_mean,
+                normalize_std=norm_std,
             )
 
     def train_dataloader(self):
