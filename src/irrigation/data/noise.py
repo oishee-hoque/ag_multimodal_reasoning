@@ -5,6 +5,7 @@ Strategies implemented:
 1. Polygon erosion — shrink label boundaries inward to remove edge noise
 2. NDVI-based ignore masking — mark unlabeled high-NDVI pixels as ignore (255)
 3. Bidirectional NDVI masking — also marks labeled-but-fallow pixels as ignore
+4. NDVI relabel — relabel low-NDVI irrigated pixels as background (0)
 
 These are applied as label_transform functions passed to the dataset.
 """
@@ -144,6 +145,49 @@ def ndvi_bidirectional_mask(
     is_irrigated = (label == 1) | (label == 2) | (label == 3)
     suspicious_irr = is_irrigated & (max_ndvi < low_threshold)
     cleaned[suspicious_irr] = 255
+
+    return cleaned
+
+
+def ndvi_relabel_background(
+    label: np.ndarray,
+    image: np.ndarray,
+    ndvi_band_index: int = 9,
+    low_threshold: float = 0.15,
+    seasons_axis_size: int = 1,
+) -> np.ndarray:
+    """
+    Relabel low-NDVI irrigated pixels as background.
+
+    Irrigated pixels (class 1/2/3) with max NDVI below low_threshold
+    are reassigned to class 0 (background) instead of being ignored.
+
+    Args:
+        label: (224, 224) uint8 label array
+        image: (C, 224, 224) float32 image array
+        ndvi_band_index: index of NDVI median within each season's 14 bands (default 9)
+        low_threshold: NDVI below this for labeled irrigated pixels → relabel as background
+        seasons_axis_size: number of seasons in the input stack (1 or 3)
+
+    Returns:
+        Cleaned label array with low-NDVI irrigated pixels set to 0 (background)
+    """
+    cleaned = label.copy()
+
+    # Extract NDVI band(s) from the stacked channels
+    bands_per_season = image.shape[0] // seasons_axis_size
+    ndvi_values = []
+    for s in range(seasons_axis_size):
+        start = s * bands_per_season
+        ndvi_values.append(image[start + ndvi_band_index])
+
+    # Max NDVI across available seasons
+    max_ndvi = np.max(np.stack(ndvi_values), axis=0)  # (224, 224)
+
+    # Labeled irrigated but low NDVI → relabel as background
+    is_irrigated = (label == 1) | (label == 2) | (label == 3)
+    low_ndvi = is_irrigated & (max_ndvi < low_threshold)
+    cleaned[low_ndvi] = 0
 
     return cleaned
 
