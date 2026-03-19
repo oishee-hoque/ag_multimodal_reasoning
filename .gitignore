@@ -46,7 +46,7 @@ notes.txt
 *.json
 *.out
 *.err
-*.shS
+*.sh
 
 #folder
 conda_env
