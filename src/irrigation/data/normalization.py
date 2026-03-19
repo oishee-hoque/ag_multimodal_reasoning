@@ -5,8 +5,9 @@ Best practice for satellite imagery training:
 - Z-score normalization (subtract mean, divide by std) per channel
 - Statistics computed from training set only (no data leakage)
 - Same stats applied to val/test
-- For RGB with ImageNet pretrained encoders: use ImageNet statistics
-  so pretrained features transfer properly (requires scaling to [0,1] first)
+- Always use dataset-specific statistics, even for RGB with pretrained
+  encoders — Sentinel-2 reflectance distributions differ fundamentally
+  from ImageNet natural photos
 """
 
 import numpy as np
@@ -14,13 +15,6 @@ import rasterio
 from pathlib import Path
 
 from irrigation.data.bands import BandConfig
-
-# ImageNet statistics — assumes input scaled to [0, 1]
-IMAGENET_MEAN = np.array([0.485, 0.456, 0.406], dtype=np.float32)
-IMAGENET_STD = np.array([0.229, 0.224, 0.225], dtype=np.float32)
-
-# Sentinel-2 L2A reflectance scaling factor (DN / 10000 → [0,1] reflectance)
-S2_SCALE_FACTOR = 10000.0
 
 
 def compute_band_statistics(
@@ -31,7 +25,7 @@ def compute_band_statistics(
     """
     Compute per-channel mean and std from training tiles.
 
-    Iterates all training tiles, accumulating sums for a two-pass
+    Iterates all training tiles, accumulating sums for a single-pass
     calculation without loading everything into memory at once.
 
     Args:
@@ -72,8 +66,3 @@ def compute_band_statistics(
     std = np.maximum(std, 1e-6)
 
     return mean, std
-
-
-def get_imagenet_stats() -> tuple[np.ndarray, np.ndarray]:
-    """Get ImageNet mean/std for 3-channel RGB input scaled to [0, 1]."""
-    return IMAGENET_MEAN.copy(), IMAGENET_STD.copy()
