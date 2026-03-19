@@ -1,8 +1,5 @@
 band_group: temporal
 split_mode: cross_state
 val_fraction: 0.15
-noise_strategy: ndvi_bidirectional
-high_threshold: 0.4
-low_threshold: 0.15
 batch_size: 16  # smaller batch for 42-channel input
 num_workers: 8
