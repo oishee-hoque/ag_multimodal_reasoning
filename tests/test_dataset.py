@@ -7,7 +7,6 @@ import torch
 from irrigation.data.dataset import IrrigationDataset
 from irrigation.data.bands import get_band_config
 from irrigation.data.transforms import get_train_transforms, get_val_transforms
-from irrigation.data.noise import erode_labels, ndvi_ignore_mask
 
 
 class TestIrrigationDataset:
@@ -93,26 +92,6 @@ class TestIrrigationDataset:
         assert sample["image"].shape == (3, 224, 224)
         assert sample["label"].shape == (224, 224)
 
-    def test_label_transform_applied(self, tmp_data_dir, spectral_band_config):
-        """Label transform (erosion) modifies labels."""
-        ds_clean = IrrigationDataset(
-            data_root=tmp_data_dir,
-            tile_ids=[0],
-            band_config=spectral_band_config,
-        )
-        ds_eroded = IrrigationDataset(
-            data_root=tmp_data_dir,
-            tile_ids=[0],
-            band_config=spectral_band_config,
-            label_transform=erode_labels,
-        )
-
-        label_clean = ds_clean[0]["label"].numpy()
-        label_eroded = ds_eroded[0]["label"].numpy()
-
-        # Erosion should increase the number of ignore (255) pixels
-        assert (label_eroded == 255).sum() >= (label_clean == 255).sum()
-
     def test_sorted_tile_ids(self, tmp_data_dir, rgb_band_config):
         """Tile IDs are sorted regardless of input order."""
         ds = IrrigationDataset(
@@ -123,73 +102,3 @@ class TestIrrigationDataset:
         assert ds.tile_ids == [1, 2, 3]
 
 
-class TestNoiseReduction:
-    """Test label cleaning functions."""
-
-    def test_erode_labels_basic(self):
-        """Erosion shrinks labeled regions and sets edges to 255."""
-        label = np.zeros((50, 50), dtype=np.uint8)
-        label[10:40, 10:40] = 1  # 30x30 block of class 1
-        image = np.zeros((3, 50, 50), dtype=np.float32)
-
-        cleaned = erode_labels(label, image, erosion_pixels=2)
-
-        # Original class 1 area
-        original_count = (label == 1).sum()
-        # Eroded class 1 area should be smaller
-        eroded_count = (cleaned == 1).sum()
-        # Eroded-away pixels should be 255
-        ignore_count = (cleaned == 255).sum()
-
-        assert eroded_count < original_count
-        assert ignore_count > 0
-        assert eroded_count + ignore_count == original_count
-
-    def test_erode_labels_no_background_erosion(self):
-        """Background (0) pixels are never eroded."""
-        label = np.zeros((50, 50), dtype=np.uint8)
-        image = np.zeros((3, 50, 50), dtype=np.float32)
-
-        cleaned = erode_labels(label, image, erosion_pixels=2)
-        np.testing.assert_array_equal(label, cleaned)
-
-    def test_ndvi_ignore_mask(self):
-        """High-NDVI background pixels become ignore (255)."""
-        label = np.zeros((50, 50), dtype=np.uint8)
-        # 14-channel image, NDVI is band 9
-        image = np.zeros((14, 50, 50), dtype=np.float32)
-        image[9, 20:30, 20:30] = 0.6  # High NDVI patch
-
-        cleaned = ndvi_ignore_mask(
-            label, image, ndvi_band_index=9, ndvi_threshold=0.4, seasons_axis_size=1
-        )
-
-        # High NDVI area that was background should now be 255
-        assert (cleaned[20:30, 20:30] == 255).all()
-        # Rest should still be 0
-        assert (cleaned[0:20, 0:20] == 0).all()
-
-    def test_ndvi_mask_preserves_labeled(self):
-        """NDVI masking only affects background (0) pixels."""
-        label = np.ones((50, 50), dtype=np.uint8)  # all class 1
-        image = np.zeros((14, 50, 50), dtype=np.float32)
-        image[9] = 0.8  # High NDVI everywhere
-
-        cleaned = ndvi_ignore_mask(label, image)
-        np.testing.assert_array_equal(label, cleaned)
-
-    def test_ndvi_mask_multitemporal(self):
-        """NDVI masking uses max across seasons for multi-temporal input."""
-        label = np.zeros((4, 4), dtype=np.uint8)
-        # 28 channels (14 bands × 2 seasons)
-        image = np.zeros((28, 4, 4), dtype=np.float32)
-        # Season 1 NDVI low, season 2 NDVI high for one pixel
-        image[9, 0, 0] = 0.1    # season 1
-        image[23, 0, 0] = 0.6   # season 2 (offset by 14)
-
-        cleaned = ndvi_ignore_mask(
-            label, image, ndvi_band_index=9,
-            ndvi_threshold=0.4, seasons_axis_size=2,
-        )
-        # Max NDVI = 0.6 > 0.4, so background pixel should become ignore
-        assert cleaned[0, 0] == 255

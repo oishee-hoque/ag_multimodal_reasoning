@@ -47,10 +47,6 @@ def train(cfg: DictConfig):
         band_group=cfg.data.band_group,
         split_mode=cfg.data.split_mode,
         val_fraction=cfg.data.val_fraction,
-        noise_strategy=cfg.data.noise_strategy,
-        high_threshold=cfg.data.get("high_threshold", 0.4),
-        low_threshold=cfg.data.get("low_threshold", 0.15),
-        ndvi_threshold=cfg.data.get("ndvi_threshold", 0.4),
         batch_size=cfg.training.batch_size,
         num_workers=cfg.training.num_workers,
         seed=cfg.seed,
@@ -120,7 +116,6 @@ def train(cfg: DictConfig):
     results = {
         "model_name": cfg.model.name,
         "band_group": cfg.data.band_group,
-        "noise_strategy": cfg.data.noise_strategy,
         "experiment_name": cfg.get("experiment_name", None),
         "num_classes": cfg.model.num_classes,
         "in_channels": band_config.num_channels,
@@ -134,7 +129,7 @@ def train(cfg: DictConfig):
 
     results_dir = Path("results")
     results_dir.mkdir(exist_ok=True)
-    exp_name = cfg.get("experiment_name") or f"{cfg.model.name}_{cfg.data.band_group}_{cfg.data.noise_strategy}"
+    exp_name = cfg.get("experiment_name") or f"{cfg.model.name}_{cfg.data.band_group}"
     output_path = results_dir / f"{exp_name}.json"
     with open(output_path, "w") as f:
         json.dump(results, f, indent=2)
