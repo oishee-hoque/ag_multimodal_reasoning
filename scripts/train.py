@@ -3,7 +3,10 @@ Hydra-powered training entry point.
 
 Usage:
     # Step 1: RGB baseline
-    python scripts/train.py experiment=step1_rgb_baseline
+    python scripts/train.py +experiment=step1_rgb_baseline
+
+    # Step 2: with noise reduction
+    python scripts/train.py +experiment=step2_noise_reduced
 
     # Override from command line
     python scripts/train.py data.band_group=spectral_s4 model.name=unet_resnet50

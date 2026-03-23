@@ -1,24 +1,29 @@
 #!/bin/bash
 #SBATCH --job-name=irrigation
+#SBATCH --output=slurm/%u-%j.out
+#SBATCH --error=slurm/%u-%j.err
 #SBATCH --partition=gpu
-#SBATCH --nodes=1
-#SBATCH --ntasks-per-node=1
-#SBATCH --cpus-per-task=8
-#SBATCH --gres=gpu:1
-#SBATCH --mem=32G
-#SBATCH --time=12:00:00
-#SBATCH --output=logs/slurm/%j_%x.out
-#SBATCH --error=logs/slurm/%j_%x.err
+#SBATCH --gres=gpu
+#SBATCH --cpus-per-task=12
+#SBATCH --mem=760GB
+#SBATCH --time=6:00:00
+#SBATCH --account=nssac_students
 
-# Load modules (adjust for your HPC)
-module load anaconda3
-module load cuda/12.1
+# Activate your conda env
+module load miniforge
+source activate /sfs/weka/scratch/gza5dr/IrrigationType_experiments/mutli_reasoning/conda_env
 
-# Activate environment
-conda activate irrigation
+# Run from scratch (faster I/O than /home)
+cd /sfs/weka/scratch/gza5dr/IrrigationType_experiments/mutli_reasoning/ag_multimodal_reasoning
+# Redirect wandb to scratch (avoid home quota)
+export WANDB_DIR=/sfs/weka/scratch/gza5dr/wandb_tmp
+export WANDB_CACHE_DIR=/sfs/weka/scratch/gza5dr/wandb_cache
+export WANDB_DATA_DIR=/sfs/weka/scratch/gza5dr/wandb_data
 
-# Create log directory
-mkdir -p logs/slurm
 
-# Run training with all arguments passed through
-python "$@"
+python scripts/train.py model=deeplabv3plus_efficientnet_b3 data=rgb_single experiment_name=A4_dlv3_50_rgb_effe_dice_norm
+# python scripts/train.py  model=deeplabv3plus_efficientnet_b3 data=rgb_noise_reduced data.noise_strategy=ndvi_relabel data.low_threshold=0.15 experiment_name=B1_noise_rgb_effe_dice
+# python scripts/train.py  model=deeplabv3plus_efficientnet_b3 data=spectral_single data.noise_strategy=ndvi_relabel data.low_threshold=0.15 experiment_name=C1_spectral_effe_dice
+# python scripts/train.py  model=deeplabv3plus_efficientnet_b3 data=temporal data.noise_strategy=ndvi_relabel data.low_threshold=0.15 experiment_name=C1_temporal_effe_dice
+
+

@@ -40,3 +40,16 @@ wandb/
 # OS
 .DS_Store
 Thumbs.db
+
+#files
+notes.txt
+*.json
+*.out
+*.err
+*.shS
+
+#folder
+conda_env
+irrigation-reasoning
+slurm
+results

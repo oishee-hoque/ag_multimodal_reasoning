@@ -1,5 +1,5 @@
 defaults:
-  - paths: hpc
+  - paths: local
   - data: rgb_single
   - model: unet_resnet34
   - training: default
@@ -13,3 +13,7 @@ wandb:
 
 tags: []
 deterministic: false
+
+training:
+  loss_fn: dice_ce
+
