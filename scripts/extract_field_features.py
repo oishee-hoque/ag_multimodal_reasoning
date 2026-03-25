@@ -64,17 +64,16 @@ def main():
             all_records.append(features)
 
     df = pd.DataFrame(all_records)
-
     output_path = Path(args.output_csv)
     output_path.parent.mkdir(parents=True, exist_ok=True)
     df.to_csv(output_path, index=False)
+
     print(f"\nExtracted features for {len(df)} fields")
-    
     if len(df):
         print("Label distribution:")
         print(df["label"].value_counts().sort_index())
         print(f"\nFeature dimensions: {df.shape[1] - 4} features + 4 metadata columns")
-    print(f"Saved to {args.output_csv}")
+    print(f"Saved to {output_path}")
 
 
 if __name__ == "__main__":

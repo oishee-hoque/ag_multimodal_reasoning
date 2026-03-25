@@ -17,6 +17,14 @@ from irrigation.field.shap_analysis import run_shap_analysis
 CLASS_NAMES_MAP = {1: "Flood", 2: "Sprinkler", 3: "Drip"}
 
 
+def _build_label_encoder(y_train: np.ndarray) -> tuple[dict[int, int], dict[int, int]]:
+    """Build maps between original class IDs and zero-based contiguous IDs."""
+    train_labels = sorted(np.unique(y_train).tolist())
+    label_to_idx = {orig: idx for idx, orig in enumerate(train_labels)}
+    idx_to_label = {idx: orig for orig, idx in label_to_idx.items()}
+    return label_to_idx, idx_to_label
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--train_csv", type=str, required=True)
@@ -43,15 +51,40 @@ def main():
     meta_cols = ["state", "tile_id", "field_id", "label"]
     feature_cols = [c for c in train_df.columns if c not in meta_cols]
 
-    X_train = np.nan_to_num(train_df[feature_cols].values.astype(np.float32), nan=0.0, posinf=0.0, neginf=0.0)
-    X_test = np.nan_to_num(test_df[feature_cols].values.astype(np.float32), nan=0.0, posinf=0.0, neginf=0.0)
+    X_train = np.nan_to_num(
+        train_df[feature_cols].values.astype(np.float32),
+        nan=0.0,
+        posinf=0.0,
+        neginf=0.0,
+    )
+    X_test = np.nan_to_num(
+        test_df[feature_cols].values.astype(np.float32),
+        nan=0.0,
+        posinf=0.0,
+        neginf=0.0,
+    )
     y_train = train_df["label"].values
     y_test = test_df["label"].values
 
-    model = train_xgboost(X_train, y_train, X_test, y_test)
-    y_pred = model.predict(X_test)
+    label_to_idx, idx_to_label = _build_label_encoder(y_train)
+    print(f"Label remap (original -> encoded): {label_to_idx}")
 
-    present_classes = sorted(set(y_test) | set(y_pred))
+    # Keep only test samples that are represented in train labels.
+    seen_mask = np.isin(y_test, list(label_to_idx.keys()))
+    if not np.all(seen_mask):
+        unseen = sorted(np.unique(y_test[~seen_mask]).tolist())
+        print(f"Warning: dropping {np.sum(~seen_mask)} test samples with unseen labels: {unseen}")
+        X_test = X_test[seen_mask]
+        y_test = y_test[seen_mask]
+
+    y_train_enc = np.array([label_to_idx[int(v)] for v in y_train], dtype=np.int64)
+    y_test_enc = np.array([label_to_idx[int(v)] for v in y_test], dtype=np.int64)
+
+    model = train_xgboost(X_train, y_train_enc, X_test, y_test_enc)
+    y_pred_enc = model.predict(X_test)
+    y_pred = np.array([idx_to_label[int(v)] for v in y_pred_enc], dtype=np.int64)
+
+    present_classes = sorted(set(y_test.tolist()) | set(y_pred.tolist()))
     class_names = [CLASS_NAMES_MAP.get(c, f"Class_{c}") for c in present_classes]
 
     report = classification_report(y_test, y_pred, labels=present_classes, target_names=class_names, digits=4)
