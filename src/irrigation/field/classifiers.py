@@ -18,6 +18,10 @@ def train_xgboost(
     """Train an XGBoost classifier on field features."""
     import xgboost as xgb
 
+    n_classes = int(np.unique(y_train).shape[0])
+    if n_classes < 2:
+        raise ValueError(f"Need at least 2 classes for classification, got {n_classes}")
+
     default_params = {
         "n_estimators": 500,
         "max_depth": 6,
@@ -32,6 +36,11 @@ def train_xgboost(
     }
     if params:
         default_params.update(params)
+
+    # XGBoost requires num_class for multi-class objectives.
+    objective = str(default_params.get("objective", ""))
+    if objective.startswith("multi:") and "num_class" not in default_params:
+        default_params["num_class"] = n_classes
 
     model = xgb.XGBClassifier(**default_params)
     eval_set = [(X_val, y_val)] if X_val is not None and y_val is not None else None
