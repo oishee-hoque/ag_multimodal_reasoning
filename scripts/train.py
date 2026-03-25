@@ -50,6 +50,11 @@ def train(cfg: DictConfig):
         batch_size=cfg.training.batch_size,
         num_workers=cfg.training.num_workers,
         seed=cfg.seed,
+        noise_strategy=cfg.data.get("noise_strategy"),
+        ndvi_high_threshold=cfg.data.get("ndvi_high_threshold", 0.4),
+        ndvi_low_threshold=cfg.data.get("ndvi_low_threshold", 0.15),
+        ndvi_band_index=cfg.data.get("ndvi_band_index", 9),
+        ndvi_season=cfg.data.get("ndvi_season", "s4"),
     )
 
     # Model
