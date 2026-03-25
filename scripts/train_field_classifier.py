@@ -81,7 +81,12 @@ def main():
     y_test_enc = np.array([label_to_idx[int(v)] for v in y_test], dtype=np.int64)
 
     model = train_xgboost(X_train, y_train_enc, X_test, y_test_enc)
-    y_pred_enc = model.predict(X_test)
+    y_pred_raw = model.predict(X_test)
+    if isinstance(y_pred_raw, np.ndarray) and y_pred_raw.ndim == 2:
+        # For softprob objectives, predict may return class probabilities.
+        y_pred_enc = np.argmax(y_pred_raw, axis=1)
+    else:
+        y_pred_enc = np.asarray(y_pred_raw).astype(np.int64)
     y_pred = np.array([idx_to_label[int(v)] for v in y_pred_enc], dtype=np.int64)
 
     present_classes = sorted(set(y_test.tolist()) | set(y_pred.tolist()))

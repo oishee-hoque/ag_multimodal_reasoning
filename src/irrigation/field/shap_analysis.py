@@ -30,9 +30,18 @@ def run_shap_analysis(
     explainer = shap.TreeExplainer(model)
     shap_values = explainer.shap_values(X_sample)
 
+    shap_per_class: list[np.ndarray] | None = None
+    if isinstance(shap_values, list):
+        shap_per_class = shap_values
+    elif isinstance(shap_values, np.ndarray) and shap_values.ndim == 3:
+        # Some SHAP/XGBoost versions return (n_samples, n_features, n_classes).
+        shap_per_class = [shap_values[:, :, i] for i in range(shap_values.shape[2])]
+
+    shap_for_summary = shap_per_class if shap_per_class is not None else shap_values
+
     plt.figure(figsize=(12, 8))
     shap.summary_plot(
-        shap_values,
+        shap_for_summary,
         X_sample,
         feature_names=feature_names,
         class_names=class_names,
@@ -45,7 +54,7 @@ def run_shap_analysis(
 
     plt.figure(figsize=(10, 8))
     shap.summary_plot(
-        shap_values,
+        shap_for_summary,
         X_sample,
         feature_names=feature_names,
         class_names=class_names,
@@ -57,14 +66,14 @@ def run_shap_analysis(
     plt.savefig(output_dir / "shap_bar.png", dpi=150, bbox_inches="tight")
     plt.close()
 
-    if isinstance(shap_values, list):
-        iterable = enumerate(class_names)
+    if shap_per_class is not None:
+        iterable = enumerate(class_names[: len(shap_per_class)])
     else:
         iterable = []
     for cls_idx, cls_name in iterable:
         plt.figure(figsize=(10, 8))
         shap.summary_plot(
-            shap_values[cls_idx],
+            shap_per_class[cls_idx],
             X_sample,
             feature_names=feature_names,
             show=False,
@@ -76,8 +85,8 @@ def run_shap_analysis(
 
     import pandas as pd
 
-    if isinstance(shap_values, list):
-        mean_abs_shap = np.mean([np.abs(sv).mean(axis=0) for sv in shap_values], axis=0)
+    if shap_per_class is not None:
+        mean_abs_shap = np.mean([np.abs(sv).mean(axis=0) for sv in shap_per_class], axis=0)
     else:
         mean_abs_shap = np.abs(shap_values).mean(axis=0)
 
