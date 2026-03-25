@@ -1,0 +1,6 @@
+min_field_pixels: 20
+seasons: [s3, s4, s5]
+include_shape_features: true
+include_spectral_features: true
+include_temporal_features: true
+spatial_cv_reference_season: s4
