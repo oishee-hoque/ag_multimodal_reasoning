@@ -64,9 +64,12 @@ def main():
             all_records.append(features)
 
     df = pd.DataFrame(all_records)
-    df.to_csv(args.output_csv, index=False)
 
+    output_path = Path(args.output_csv)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    df.to_csv(output_path, index=False)
     print(f"\nExtracted features for {len(df)} fields")
+    
     if len(df):
         print("Label distribution:")
         print(df["label"].value_counts().sort_index())
