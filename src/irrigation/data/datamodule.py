@@ -49,6 +49,11 @@ class IrrigationDataModule(pl.LightningDataModule):
         num_workers: int = 4,
         pin_memory: bool = True,
         seed: int = 42,
+        noise_strategy: str | None = None,
+        ndvi_high_threshold: float = 0.4,
+        ndvi_low_threshold: float = 0.15,
+        ndvi_band_index: int = 9,
+        ndvi_season: str = "s4",
     ):
         super().__init__()
         self.save_hyperparameters()
@@ -63,6 +68,11 @@ class IrrigationDataModule(pl.LightningDataModule):
         self.num_workers = num_workers
         self.pin_memory = pin_memory
         self.seed = seed
+        self.noise_strategy = noise_strategy
+        self.ndvi_high_threshold = ndvi_high_threshold
+        self.ndvi_low_threshold = ndvi_low_threshold
+        self.ndvi_band_index = ndvi_band_index
+        self.ndvi_season = ndvi_season
 
     def _get_tile_ids(self, state_path: Path) -> list[int]:
         """Extract tile IDs from the labels directory."""
@@ -158,11 +168,21 @@ class IrrigationDataModule(pl.LightningDataModule):
 
             test_ids = self._get_tile_ids(self.test_state_path)
 
+            # Noise refinement only for training data
+            noise_kwargs = dict(
+                noise_strategy=self.noise_strategy,
+                ndvi_high_threshold=self.ndvi_high_threshold,
+                ndvi_low_threshold=self.ndvi_low_threshold,
+                ndvi_band_index=self.ndvi_band_index,
+                ndvi_season=self.ndvi_season,
+            )
+
             self.train_dataset = IrrigationDataset(
                 self.train_state_path,
                 train_ids,
                 self.band_config,
                 transform=get_train_transforms(),
+                **noise_kwargs,
             )
             self.val_dataset = IrrigationDataset(
                 self.train_state_path,
@@ -186,11 +206,20 @@ class IrrigationDataModule(pl.LightningDataModule):
                 self.test_fraction,
             )
 
+            noise_kwargs = dict(
+                noise_strategy=self.noise_strategy,
+                ndvi_high_threshold=self.ndvi_high_threshold,
+                ndvi_low_threshold=self.ndvi_low_threshold,
+                ndvi_band_index=self.ndvi_band_index,
+                ndvi_season=self.ndvi_season,
+            )
+
             self.train_dataset = IrrigationDataset(
                 self.train_state_path,
                 train_ids,
                 self.band_config,
                 transform=get_train_transforms(),
+                **noise_kwargs,
             )
             self.val_dataset = IrrigationDataset(
                 self.train_state_path,
