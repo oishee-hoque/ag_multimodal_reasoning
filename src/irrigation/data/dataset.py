@@ -35,6 +35,7 @@ class IrrigationDataset(Dataset):
         noise_strategy: Label noise refinement strategy. Options:
             - None: no refinement
             - "ndvi_bidirectional": suppress noisy labels using NDVI thresholds
+            - "ndvi_background_only": only suppress background pixels with high NDVI
         ndvi_high_threshold: NDVI above this for background pixels → set to ignore (likely unlabeled irrigated)
         ndvi_low_threshold: NDVI below this for irrigated pixels → set to ignore (likely mislabeled)
         ndvi_band_index: Index of NDVI_median band in the 14-band GeoTIFF (default 9)
@@ -127,6 +128,14 @@ class IrrigationDataset(Dataset):
         np.save(cache_path, data)
         return data
 
+    def _load_ndvi(self, tile_name: str) -> np.ndarray:
+        """Load the NDVI band from the reference season."""
+        if self.use_cache:
+            img_data = self._load_image_cached(tile_name, self.ndvi_season)
+        else:
+            img_data = self._load_image_tif(tile_name, self.ndvi_season)
+        return img_data[self.ndvi_band_index]  # (224, 224)
+
     def _refine_labels(self, label: np.ndarray, tile_name: str) -> np.ndarray:
         """Apply NDVI-based bidirectional label noise suppression.
 
@@ -135,13 +144,7 @@ class IrrigationDataset(Dataset):
         - Background pixels (class 0) with NDVI > high_threshold → ignore (255)
           These are likely unlabeled irrigated fields.
         """
-        # Load the NDVI band from the reference season
-        if self.use_cache:
-            img_data = self._load_image_cached(tile_name, self.ndvi_season)
-        else:
-            img_data = self._load_image_tif(tile_name, self.ndvi_season)
-        ndvi = img_data[self.ndvi_band_index]  # (224, 224)
-
+        ndvi = self._load_ndvi(tile_name)
         label = label.copy()
 
         # Suppress irrigated pixels with low NDVI (likely mislabeled)
@@ -150,6 +153,21 @@ class IrrigationDataset(Dataset):
         label[irrigated_mask & low_ndvi] = 255
 
         # Suppress background pixels with high NDVI (likely unlabeled irrigated)
+        bg_mask = label == 0
+        high_ndvi = ndvi > self.ndvi_high_threshold
+        label[bg_mask & high_ndvi] = 255
+
+        return label
+
+    def _refine_labels_background_only(self, label: np.ndarray, tile_name: str) -> np.ndarray:
+        """Suppress only background pixels with high NDVI (one-directional).
+
+        Background pixels (class 0) with NDVI > high_threshold → ignore (255).
+        Irrigated pixels are never modified regardless of their NDVI.
+        """
+        ndvi = self._load_ndvi(tile_name)
+        label = label.copy()
+
         bg_mask = label == 0
         high_ndvi = ndvi > self.ndvi_high_threshold
         label[bg_mask & high_ndvi] = 255
@@ -184,6 +202,8 @@ class IrrigationDataset(Dataset):
         # Apply label noise refinement
         if self.noise_strategy == "ndvi_bidirectional":
             label = self._refine_labels(label, tile_name)
+        elif self.noise_strategy == "ndvi_background_only":
+            label = self._refine_labels_background_only(label, tile_name)
 
         # Apply spatial augmentations (albumentations expects HWC for image)
         if self.transform is not None:

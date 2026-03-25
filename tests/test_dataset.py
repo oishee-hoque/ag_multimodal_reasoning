@@ -214,4 +214,44 @@ class TestNoiseRefinement:
         # Top-left should still be 1 (not suppressed)
         assert (label[:112, :112] == 1).all()
 
+    def test_ndvi_background_only_suppresses_high_ndvi_background(self, tmp_data_dir, rgb_band_config):
+        """Background pixels with high NDVI are suppressed."""
+        self._make_controlled_tile(tmp_data_dir)
+        ds = IrrigationDataset(
+            data_root=tmp_data_dir,
+            tile_ids=[0],
+            band_config=rgb_band_config,
+            use_cache=False,
+            noise_strategy="ndvi_background_only",
+            ndvi_high_threshold=0.4,
+        )
+        sample = ds[0]
+        label = sample["label"].numpy()
+
+        # Bottom-right: was background (0) with NDVI=0.6 → should be 255
+        assert (label[112:, 112:] == 255).all()
+
+        # Bottom-left: was background (0) with NDVI=0.3 → should remain 0
+        assert (label[112:, :112] == 0).all()
+
+    def test_ndvi_background_only_leaves_irrigated_unchanged(self, tmp_data_dir, rgb_band_config):
+        """Irrigated pixels with low NDVI are NOT suppressed (one-directional)."""
+        self._make_controlled_tile(tmp_data_dir)
+        ds = IrrigationDataset(
+            data_root=tmp_data_dir,
+            tile_ids=[0],
+            band_config=rgb_band_config,
+            use_cache=False,
+            noise_strategy="ndvi_background_only",
+            ndvi_high_threshold=0.4,
+        )
+        sample = ds[0]
+        label = sample["label"].numpy()
+
+        # Top-left: was irrigated (1) with NDVI=0.05 → should remain 1 (NOT suppressed)
+        assert (label[:112, :112] == 1).all()
+
+        # Top-right: was irrigated (1) with NDVI=0.3 → should remain 1
+        assert (label[:112, 112:] == 1).all()
+
 
