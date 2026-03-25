@@ -32,6 +32,13 @@ class IrrigationDataset(Dataset):
         transform: Optional albumentations transform pipeline
         return_metadata: Whether to include metadata dict in output
         use_cache: If True, cache tiles as .npy files for faster reads
+        noise_strategy: Label noise refinement strategy. Options:
+            - None: no refinement
+            - "ndvi_bidirectional": suppress noisy labels using NDVI thresholds
+        ndvi_high_threshold: NDVI above this for background pixels → set to ignore (likely unlabeled irrigated)
+        ndvi_low_threshold: NDVI below this for irrigated pixels → set to ignore (likely mislabeled)
+        ndvi_band_index: Index of NDVI_median band in the 14-band GeoTIFF (default 9)
+        ndvi_season: Season to use for NDVI check (default "s4", peak summer)
     """
 
     def __init__(
@@ -42,6 +49,11 @@ class IrrigationDataset(Dataset):
         transform=None,
         return_metadata: bool = False,
         use_cache: bool = True,
+        noise_strategy: str | None = None,
+        ndvi_high_threshold: float = 0.4,
+        ndvi_low_threshold: float = 0.15,
+        ndvi_band_index: int = 9,
+        ndvi_season: str = "s4",
     ):
         self.data_root = Path(data_root)
         self.tile_ids = sorted(tile_ids)
@@ -49,6 +61,11 @@ class IrrigationDataset(Dataset):
         self.transform = transform
         self.return_metadata = return_metadata
         self.use_cache = use_cache
+        self.noise_strategy = noise_strategy
+        self.ndvi_high_threshold = ndvi_high_threshold
+        self.ndvi_low_threshold = ndvi_low_threshold
+        self.ndvi_band_index = ndvi_band_index
+        self.ndvi_season = ndvi_season
 
         # Cache directory sits alongside images/labels
         self.cache_dir = self.data_root / "npy_cache"
@@ -110,6 +127,35 @@ class IrrigationDataset(Dataset):
         np.save(cache_path, data)
         return data
 
+    def _refine_labels(self, label: np.ndarray, tile_name: str) -> np.ndarray:
+        """Apply NDVI-based bidirectional label noise suppression.
+
+        - Irrigated pixels (class 1,2,3) with NDVI < low_threshold → ignore (255)
+          These are likely mislabeled or fallow fields.
+        - Background pixels (class 0) with NDVI > high_threshold → ignore (255)
+          These are likely unlabeled irrigated fields.
+        """
+        # Load the NDVI band from the reference season
+        if self.use_cache:
+            img_data = self._load_image_cached(tile_name, self.ndvi_season)
+        else:
+            img_data = self._load_image_tif(tile_name, self.ndvi_season)
+        ndvi = img_data[self.ndvi_band_index]  # (224, 224)
+
+        label = label.copy()
+
+        # Suppress irrigated pixels with low NDVI (likely mislabeled)
+        irrigated_mask = (label >= 1) & (label <= 3)
+        low_ndvi = ndvi < self.ndvi_low_threshold
+        label[irrigated_mask & low_ndvi] = 255
+
+        # Suppress background pixels with high NDVI (likely unlabeled irrigated)
+        bg_mask = label == 0
+        high_ndvi = ndvi > self.ndvi_high_threshold
+        label[bg_mask & high_ndvi] = 255
+
+        return label
+
     def __len__(self) -> int:
         return len(self.tile_ids)
 
@@ -134,6 +180,10 @@ class IrrigationDataset(Dataset):
             label = self._load_label_cached(tile_name)
         else:
             label = self._load_label_tif(tile_name)
+
+        # Apply label noise refinement
+        if self.noise_strategy == "ndvi_bidirectional":
+            label = self._refine_labels(label, tile_name)
 
         # Apply spatial augmentations (albumentations expects HWC for image)
         if self.transform is not None:

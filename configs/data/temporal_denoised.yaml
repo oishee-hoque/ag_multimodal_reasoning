@@ -1,0 +1,10 @@
+band_group: temporal
+split_mode: cross_state
+val_fraction: 0.15
+batch_size: 16
+num_workers: 8
+noise_strategy: ndvi_bidirectional
+ndvi_high_threshold: 0.4
+ndvi_low_threshold: 0.15
+ndvi_band_index: 9
+ndvi_season: s4
