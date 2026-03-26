@@ -50,6 +50,27 @@ BAND_GROUPS = {
         num_channels=42,  # 14 × 3
         pretrained_compatible=False,
     ),
+    "rgb_s4_fields": BandConfig(
+        name="rgb_s4_fields",
+        band_indices=[0, 1, 2],
+        seasons=["s4"],
+        num_channels=6,  # 3 RGB + 3 field channels
+        pretrained_compatible=False,
+    ),
+    "spectral_s4_fields": BandConfig(
+        name="spectral_s4_fields",
+        band_indices=list(range(14)),
+        seasons=["s4"],
+        num_channels=17,  # 14 spectral + 3 field channels
+        pretrained_compatible=False,
+    ),
+    "temporal_fields": BandConfig(
+        name="temporal_fields",
+        band_indices=list(range(14)),
+        seasons=["s3", "s4", "s5"],
+        num_channels=45,  # 42 temporal + 3 field channels
+        pretrained_compatible=False,
+    ),
 }
 
 

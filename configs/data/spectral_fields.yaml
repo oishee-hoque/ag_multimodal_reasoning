@@ -1,0 +1,7 @@
+band_group: spectral_s4_fields
+split_mode: cross_state
+val_fraction: 0.15
+noise_strategy: none
+use_field_channels: true
+batch_size: 16
+num_workers: 4

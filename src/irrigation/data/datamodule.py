@@ -54,6 +54,7 @@ class IrrigationDataModule(pl.LightningDataModule):
         ndvi_low_threshold: float = 0.15,
         ndvi_band_index: int = 9,
         ndvi_season: str = "s4",
+        use_field_channels: bool = False,
     ):
         super().__init__()
         self.save_hyperparameters()
@@ -73,6 +74,7 @@ class IrrigationDataModule(pl.LightningDataModule):
         self.ndvi_low_threshold = ndvi_low_threshold
         self.ndvi_band_index = ndvi_band_index
         self.ndvi_season = ndvi_season
+        self.use_field_channels = use_field_channels
 
     def _get_tile_ids(self, state_path: Path) -> list[int]:
         """Extract tile IDs from the labels directory."""
@@ -182,6 +184,7 @@ class IrrigationDataModule(pl.LightningDataModule):
                 train_ids,
                 self.band_config,
                 transform=get_train_transforms(),
+                use_field_channels=self.use_field_channels,
                 **noise_kwargs,
             )
             self.val_dataset = IrrigationDataset(
@@ -189,12 +192,14 @@ class IrrigationDataModule(pl.LightningDataModule):
                 val_ids,
                 self.band_config,
                 transform=get_val_transforms(),
+                use_field_channels=self.use_field_channels,
             )
             self.test_dataset = IrrigationDataset(
                 self.test_state_path,
                 test_ids,
                 self.band_config,
                 transform=get_val_transforms(),
+                use_field_channels=self.use_field_channels,
             )
 
         elif self.split_mode == "within_state":
@@ -219,6 +224,7 @@ class IrrigationDataModule(pl.LightningDataModule):
                 train_ids,
                 self.band_config,
                 transform=get_train_transforms(),
+                use_field_channels=self.use_field_channels,
                 **noise_kwargs,
             )
             self.val_dataset = IrrigationDataset(
@@ -226,12 +232,14 @@ class IrrigationDataModule(pl.LightningDataModule):
                 val_ids,
                 self.band_config,
                 transform=get_val_transforms(),
+                use_field_channels=self.use_field_channels,
             )
             self.test_dataset = IrrigationDataset(
                 self.train_state_path,
                 test_ids,
                 self.band_config,
                 transform=get_val_transforms(),
+                use_field_channels=self.use_field_channels,
             )
 
     def train_dataloader(self):
