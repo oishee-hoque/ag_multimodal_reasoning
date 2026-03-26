@@ -108,6 +108,13 @@ class SegmentationModule(pl.LightningModule):
         cardinality = probs.sum(dim=dims) + one_hot.sum(dim=dims)
 
         dice_score = (2.0 * intersection + smooth) / (cardinality + smooth)
+
+        # Weight per-class dice by class_weights (so ignored classes contribute 0)
+        if self.class_weight is not None:
+            weighted_dice = dice_score * self.class_weight
+            active = self.class_weight > 0
+            return 1.0 - weighted_dice[active].sum() / self.class_weight[active].sum()
+
         return 1.0 - dice_score.mean()
 
     def _compute_loss(

@@ -32,6 +32,11 @@ from pytorch_lightning.loggers import WandbLogger
 from irrigation.data.datamodule import IrrigationDataModule
 from irrigation.modules.seg_module import SegmentationModule
 from irrigation.data.bands import get_band_config
+from irrigation.data.class_weights import (
+    compute_class_frequencies,
+    compute_inverse_frequency_weights,
+    print_class_weight_summary,
+)
 
 
 @hydra.main(version_base=None, config_path="../configs", config_name="config")
@@ -58,12 +63,37 @@ def train(cfg: DictConfig):
         use_field_channels=cfg.data.get("use_field_channels", False),
     )
 
+    # Class weights
+    raw_weights = cfg.model.get("class_weights")
+    ignore_classes = list(cfg.model.get("ignore_classes", []))
+    if raw_weights == "auto":
+        # Compute inverse-frequency weights from training labels
+        from pathlib import Path as _Path
+
+        counts = compute_class_frequencies(
+            _Path(cfg.paths.train_state),
+            num_classes=cfg.model.num_classes,
+        )
+        class_weights = compute_inverse_frequency_weights(
+            counts, zero_classes=ignore_classes or None
+        )
+        print_class_weight_summary(counts, class_weights, "inverse_frequency (auto)")
+        class_weights = class_weights.tolist()
+    elif raw_weights is not None:
+        class_weights = list(raw_weights)
+        # Zero out ignored classes
+        for cls in ignore_classes:
+            class_weights[cls] = 0.0
+        print(f"Using manual class weights: {class_weights}")
+    else:
+        class_weights = None
+
     # Model
     module = SegmentationModule(
         model_name=cfg.model.name,
         in_channels=band_config.num_channels,
         num_classes=cfg.model.num_classes,
-        class_weights=cfg.model.get("class_weights"),
+        class_weights=class_weights,
         loss_fn=cfg.training.get("loss_fn", "ce"),
         lr=cfg.training.lr,
         weight_decay=cfg.training.weight_decay,
