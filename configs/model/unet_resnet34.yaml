@@ -1,3 +1,4 @@
 name: unet_resnet34
 num_classes: 4
-class_weights: null  # set after analyzing class distribution
+class_weights: auto  # compute inverse-frequency weights from training labels
+ignore_classes: [3]  # drip (class 3) — set weight to 0

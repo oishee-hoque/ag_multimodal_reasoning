@@ -1,3 +1,4 @@
 name: deeplabv3plus_resnet50
 num_classes: 4
-class_weights: null
+class_weights: auto
+ignore_classes: [3]
