@@ -19,6 +19,7 @@ import rasterio
 import numpy as np
 
 from irrigation.data.bands import BandConfig
+from irrigation.data.field_channels import create_all_field_channels
 
 
 class IrrigationDataset(Dataset):
@@ -55,6 +56,7 @@ class IrrigationDataset(Dataset):
         ndvi_low_threshold: float = 0.15,
         ndvi_band_index: int = 9,
         ndvi_season: str = "s4",
+        use_field_channels: bool = False,
     ):
         self.data_root = Path(data_root)
         self.tile_ids = sorted(tile_ids)
@@ -67,6 +69,7 @@ class IrrigationDataset(Dataset):
         self.ndvi_low_threshold = ndvi_low_threshold
         self.ndvi_band_index = ndvi_band_index
         self.ndvi_season = ndvi_season
+        self.use_field_channels = use_field_channels
 
         # Cache directory sits alongside images/labels
         self.cache_dir = self.data_root / "npy_cache"
@@ -199,6 +202,10 @@ class IrrigationDataset(Dataset):
         else:
             label = self._load_label_tif(tile_name)
 
+        # Generate field channels from ORIGINAL label (before noise cleaning)
+        if self.use_field_channels:
+            field_channels = create_all_field_channels(label)  # (3, H, W)
+
         # Apply label noise refinement
         if self.noise_strategy == "ndvi_bidirectional":
             label = self._refine_labels(label, tile_name)
@@ -207,12 +214,27 @@ class IrrigationDataset(Dataset):
 
         # Apply spatial augmentations (albumentations expects HWC for image)
         if self.transform is not None:
-            # albumentations needs (H, W, C) for image
             image_hwc = np.transpose(image, (1, 2, 0))  # (224, 224, C)
-            transformed = self.transform(image=image_hwc, mask=label)
-            image_hwc = transformed["image"]
-            label = transformed["mask"]
-            image = np.transpose(image_hwc, (2, 0, 1))  # (C, 224, 224)
+            if self.use_field_channels:
+                # Include field channels in augmentation so they get the same
+                # spatial transforms (flips, rotations) as the image
+                field_hwc = np.transpose(field_channels, (1, 2, 0))
+                combined_hwc = np.concatenate([image_hwc, field_hwc], axis=2)
+                transformed = self.transform(image=combined_hwc, mask=label)
+                combined_hwc = transformed["image"]
+                label = transformed["mask"]
+                n_img_channels = image_hwc.shape[2]
+                image = np.transpose(combined_hwc[:, :, :n_img_channels], (2, 0, 1))
+                field_channels = np.transpose(combined_hwc[:, :, n_img_channels:], (2, 0, 1))
+            else:
+                transformed = self.transform(image=image_hwc, mask=label)
+                image_hwc = transformed["image"]
+                label = transformed["mask"]
+                image = np.transpose(image_hwc, (2, 0, 1))  # (C, 224, 224)
+
+        # Concatenate field channels to image
+        if self.use_field_channels:
+            image = np.concatenate([image, field_channels], axis=0)  # (C+3, H, W)
 
         # Convert to tensors
         image_tensor = torch.from_numpy(image.copy()).float()

@@ -55,6 +55,7 @@ def train(cfg: DictConfig):
         ndvi_low_threshold=cfg.data.get("ndvi_low_threshold", 0.15),
         ndvi_band_index=cfg.data.get("ndvi_band_index", 9),
         ndvi_season=cfg.data.get("ndvi_season", "s4"),
+        use_field_channels=cfg.data.get("use_field_channels", False),
     )
 
     # Model
